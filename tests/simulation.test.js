@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {Match,move,blocked,lineClear,direction} from '../src/simulation.js';
+const ticks=(m,n)=>{for(let i=0;i<n;i++)m.step(1/60);};
+function player(m,id,x,z){const p=m.add(id,id);Object.assign(p,{x,z,y:0,yaw:0,pitch:0,invulnerable:0});return p;}
+test('running is faster; diagonal input does not increase speed',()=>{const base={x:0,z:0,y:0,hp:100,vy:0,yaw:0};const a={...base},b={...base},c={...base};move(a,{forward:1},.1);move(b,{forward:1,sprint:true},.1);move(c,{forward:1,side:1},.1);assert.ok(-b.z>-a.z);assert.ok(Math.abs(Math.hypot(c.x,c.z)+a.z)<1e-6);});
+test('players collide with containers and yard boundary',()=>{assert.ok(blocked(-5,-3));assert.ok(blocked(26,0));const p={x:-5,z:2,y:0,hp:100,vy:0,yaw:0};for(let i=0;i<60;i++)move(p,{forward:1},1/60);assert.ok(p.z>=1.8);});
+test('jump returns to the ground',()=>{const m=new Match(),p=player(m,'a',0,0);m.inputs.a={jump:true};m.step(1/60);m.inputs.a={};assert.ok(p.y>0);ticks(m,100);assert.equal(p.y,0);});
+test('rifle hits, enforces fire rate and kills after four body hits',()=>{const m=new Match(),a=player(m,'a',0,8),b=player(m,'b',0,3);a.pitch=-.08;m.act('a','fire');assert.equal(b.hp,73);m.act('a','fire');assert.equal(a.ammo,29);for(let i=0;i<3;i++){ticks(m,8);m.act('a','fire');}assert.equal(b.hp,0);assert.equal(a.kills,1);assert.equal(b.deaths,1);ticks(m,190);assert.equal(b.hp,100);});
+test('walls stop bullets and flash line of sight',()=>{const m=new Match(),a=player(m,'a',-5,5),b=player(m,'b',-5,-10);m.act('a','fire');assert.equal(b.hp,100);assert.equal(lineClear({x:-5,y:1.5,z:5},{x:-5,y:1.5,z:-10}),false);});
+test('reload blocks shots and refills ammunition',()=>{const m=new Match(),p=player(m,'a',0,0);p.ammo=4;m.act('a','reload');m.act('a','fire');assert.equal(p.ammo,4);ticks(m,95);assert.equal(p.ammo,30);assert.equal(p.reload,0);});
+test('pickup is consumed once, capped, and returns after cooldown',()=>{const m=new Match(),p=player(m,'a',0,0);ticks(m,1);assert.equal(p.frag,3);ticks(m,60);assert.equal(p.frag,3);ticks(m,500);assert.equal(p.frag,4);});
+test('frag inventory, detonation and self damage',()=>{const m=new Match(),p=player(m,'a',0,0);m.act('a','frag');assert.equal(p.frag,1);assert.equal(m.grenades.length,1);m.grenades[0].x=0;m.grenades[0].y=1;m.grenades[0].z=0;m.grenades[0].fuse=0;m.step(1/60);assert.equal(m.grenades.length,0);assert.ok(p.hp<100);assert.ok(m.events.some(e=>e.type==='blast'));});
+test('looking away reduces flash effect; full cover blocks it',()=>{const m=new Match(),a=player(m,'a',0,5),b=player(m,'b',1,5),c=player(m,'c',-5,-10);b.yaw=Math.PI;m.grenades.push({id:1,owner:'a',type:'flash',x:0,y:1.5,z:0,vx:0,vy:0,vz:0,fuse:0});m.step(1/60);const events=m.events.filter(e=>e.type==='flash');assert.ok(events.find(e=>e.id==='a').strength>events.find(e=>e.id==='b').strength);assert.ok(!events.some(e=>e.id==='c'));});
+test('spawn protection and match end prevent damage/actions',()=>{const m=new Match(),p=m.add('a','a');m.damage(p,100,'a','frag');assert.equal(p.hp,100);m.time=300;m.act('a','frag');assert.equal(p.frag,2);});
+test('snapshot drains events and does not expose mutable player references',()=>{const m=new Match();m.add('a','a');m.emit('test',{});const s=m.snapshot();s.players.a.hp=1;assert.equal(m.players.a.hp,100);assert.equal(s.events.length,1);assert.equal(m.snapshot().events.length,0);});
+test('camera forward vector agrees with positive pitch looking up',()=>{const d=direction(0,.4);assert.ok(d.y>0);assert.ok(d.z<0);});
