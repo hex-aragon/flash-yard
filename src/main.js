@@ -25,7 +25,7 @@ function busy(value){for(const id of ['host','join','practice'])$(id).disabled=v
 function toast(message){$('toast').textContent=message;toastUntil=elapsed+2.6;}
 function resetInput(){keys.clear();firing=false;input=blank();if(match&&myId)match.inputs[myId]=input;room?.send({type:'input',input});}
 function enter(id,isPractice){
- myId=id;practice=isPractice;active=true;ended=false;dragMode=false;locked=false;$('drag-mode').hidden=true;accumulator=0;networkClock=0;predicted=null;feed.length=0;flashTime=0;hurtTime=0;
+ myId=id;practice=isPractice;active=true;ended=false;dragMode=false;locked=false;$('drag-mode').hidden=true;accumulator=0;networkClock=0;predicted=null;feed.length=0;flashTime=0;flashPower=0;hurtTime=0;hitTime=0;toastUntil=0;
  $('lobby').hidden=true;$('hud').hidden=false;$('pause').hidden=false;$('pause-title').textContent='준비됐으면, 뛰어!';$('pause-copy').textContent='아래 버튼을 누르면 게임을 시작합니다.';$('resume').textContent='전장으로 들어가기';$('resume').hidden=false;
  $('copy-link').hidden=isPractice;$('room-badge').textContent=isPractice?'연습 모드':`방 ${code} · 초대 링크 복사`;$('mode-label').textContent=isPractice?'봇 3명과 몸풀기':'자유 전투 / 최대 8명';
  $('scoreboard').hidden=true;busy(false);lastState=performance.now();
@@ -107,7 +107,7 @@ document.addEventListener('keydown',e=>{
  if(e.code==='KeyG')act('frag');if(e.code==='KeyF')act('flash');if(e.code==='KeyR')act('reload');
 });
 document.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Tab'){$('scoreboard').hidden=true;if(ended)$('pause').hidden=false;}});
-document.addEventListener('mousedown',e=>{if(locked&&e.button===0)firing=true;});document.addEventListener('mouseup',e=>{if(e.button===0)firing=false;});
+document.addEventListener('mousedown',e=>{if(locked&&e.button===0){firing=true;act('fire');}});document.addEventListener('mouseup',e=>{if(e.button===0)firing=false;});
 $('game').addEventListener('contextmenu',e=>e.preventDefault());window.addEventListener('blur',resetInput);document.addEventListener('visibilitychange',()=>{if(document.hidden)resetInput();});window.addEventListener('pagehide',()=>room?.close());
 const invited=new URLSearchParams(location.search).get('room');if(invited){$('room-code').value=invited.slice(0,6).toUpperCase();status('초대받은 훈련장이에요. 호출명을 정하고 입장하세요.');}
 busy(true);world.ready.then(()=>{ready=true;busy(false);}).catch(error=>{console.error(error);status('맵 파일을 불러오지 못했어요. 새로고침해 주세요.',true);});
