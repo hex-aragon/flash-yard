@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#172e40"/><meta name="description" content="Flash Yard — 친구와 방 코드로 만나는 빠른 멀티플레이 FPS. 달리고, 던지고, 웃으세요."/><title>Flash Yard — 우정 파괴 훈련장</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23172e40'/%3E%3Cpath d='M35 6 13 36h17l-3 22 24-32H34z' fill='%23ef6c48'/%3E%3C/svg%3E"/></head>
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/><meta name="theme-color" content="#172e40"/><meta name="description" content="Flash Yard — 친구와 방 코드로 만나는 빠른 멀티플레이 FPS. 달리고, 던지고, 웃으세요."/><title>Flash Yard — 우정 파괴 훈련장</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23172e40'/%3E%3Cpath d='M35 6 13 36h17l-3 22 24-32H34z' fill='%23ef6c48'/%3E%3C/svg%3E"/></head>
 <body>
 <canvas id="game" aria-label="Flash Yard 3D 게임 화면"></canvas>
 <div id="lobby">
@@ -14,11 +14,11 @@
    <label for="room-code">방 코드</label><div class="join-row"><input id="room-code" maxlength="6" placeholder="6자리 코드" autocomplete="off" spellcheck="false"/><button id="join">입장</button></div>
    <p id="status" role="status" aria-live="polite">방을 만들고 초대 링크를 친구에게 보내세요.</p>
    <button id="practice" class="practice">혼자 몸풀기 <span>연습 봇 3명 ↗</span></button>
-   <div class="settings"><label for="sensitivity">마우스 감도</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"/><label class="check"><input id="soft-flash" type="checkbox" checked/> 눈 편한 섬광</label></div>
+   <div class="control-setting"><label><input id="touch-mode" type="checkbox"/> 화면 조이스틱 · 터치 조작</label></div><div class="settings"><label for="sensitivity">마우스 감도</label><input id="sensitivity" type="range" min="0.5" max="2" step="0.1" value="1"/><label class="check"><input id="soft-flash" type="checkbox" checked/> 눈 편한 섬광</label></div>
   </section>
  </main>
- <footer class="lobby-footer"><div><kbd>W A S D</kbd> 이동 <kbd>Shift</kbd> 달리기 <kbd>G</kbd> 수류탄 <kbd>F</kbd> 섬광탄</div><span>PC + 마우스로 플레이 · 원작 에셋을 사용하지 않은 오리지널 게임</span></footer>
- <div class="mobile-note">키보드와 마우스가 필요한 PC 게임입니다.<br/>컴퓨터에서 이 주소를 열어주세요.</div>
+ <footer class="lobby-footer"><div><kbd>W A S D</kbd> 이동 <kbd>Shift</kbd> 달리기 <kbd>G</kbd> 수류탄 <kbd>F</kbd> 섬광탄</div><span>PC·모바일 플레이 · 오리지널 게임</span></footer>
+ <div class="mobile-note">왼쪽 조이스틱으로 이동 · 오른쪽 드래그로 조준<br/>휴대폰을 가로로 돌리면 더 넓게 보여요.</div>
 </div>
 <div id="hud" hidden>
  <div class="match-top"><div class="match-brand">ϟ FLASH YARD <small id="mode-label">자유 전투</small></div><div class="timer" id="timer">05:00</div><button id="room-badge" title="초대 링크 복사">연습 모드</button></div>
@@ -28,9 +28,22 @@
  <div id="hurt"></div><div id="flash"><span>섬광에 노출됨</span></div>
  <div class="bottom-hud"><div class="health-group"><small>체력</small><strong><span id="hp">100</span><i>＋</i></strong><div class="health-track"><div id="health-bar"></div></div></div><div class="equipment"><div><kbd>G</kbd><span>수류탄</span><b id="frag-count">2</b></div><div><kbd>F</kbd><span>섬광탄</span><b id="flash-count">2</b></div></div><div class="ammo-group"><small id="weapon-label">FY-30 / 자동소총</small><strong><span id="ammo">30</span><em>/ ∞</em></strong><span><kbd>R</kbd> 재장전</span></div></div>
  <div class="ingame-help"><kbd>Space</kbd> 점프 <kbd>Shift</kbd> 질주 <kbd>Tab</kbd> 순위 <kbd>Esc</kbd> 메뉴</div>
+ <div id="screen-controls" hidden>
+  <div id="look-zone" aria-label="오른쪽 화면을 드래그해 조준"></div>
+  <div class="touch-top"><button id="touch-score" aria-label="점수표 열기">순위</button><button id="touch-menu" aria-label="게임 메뉴 열기">메뉴 Ⅱ</button></div>
+  <div class="joystick-wrap"><span class="joystick-hint">이동 · 끝까지 밀면 질주</span><div id="joystick" role="group" aria-label="이동 조이스틱"><span class="stick-arrows" aria-hidden="true">＋</span><span id="joystick-thumb"></span></div></div>
+  <span class="look-hint">오른쪽 화면을 밀어 조준</span>
+  <div class="touch-actions">
+   <button id="touch-frag" aria-label="수류탄 던지기">수류탄 <b id="touch-frag-count">2</b></button>
+   <button id="touch-flash" aria-label="섬광탄 던지기">섬광탄 <b id="touch-flash-count">2</b></button>
+   <button id="touch-reload" aria-label="재장전">재장전</button>
+   <button id="touch-jump" aria-label="점프">점프 ↑</button>
+   <button id="touch-fire" aria-label="발사 누르고 있으면 연사">⌖<small>발사</small></button>
+  </div>
+ </div>
  <div id="death" hidden><h2>잠깐, 숨 고르기.</h2><p><span id="respawn">3</span>초 후 다시 달립니다</p></div>
  <section id="scoreboard" hidden><h2>훈련장 성적표</h2><div class="score-heading"><span>호출명</span><span>처치</span><span>데스</span></div><div id="score-rows"></div><p>친구는 잃어도, 점수는 남는다.</p></section>
 </div>
-<div id="pause" hidden><section class="pause-panel"><span class="brand-symbol">ϟ</span><h2 id="pause-title">잠깐 작전 회의</h2><p id="pause-copy">클릭하면 마우스가 게임에 고정됩니다.</p><button id="resume" class="primary">전장으로 돌아가기</button><button id="drag-mode" hidden>마우스 드래그 모드로 플레이</button><button id="copy-link">친구 초대 링크 복사</button><button id="leave" class="quiet">로비로 나가기</button><p class="pause-hint">WASD 이동 · 마우스 발사 · G 수류탄 · F 섬광탄<br/>투척물은 내게도 영향을 줍니다. 엄폐물을 활용하세요.</p></section></div>
+<div id="pause" hidden><section class="pause-panel"><span class="brand-symbol">ϟ</span><h2 id="pause-title">잠깐 작전 회의</h2><p id="pause-copy">클릭하면 마우스가 게임에 고정됩니다.</p><button id="resume" class="primary">전장으로 돌아가기</button><button id="drag-mode" hidden>마우스 드래그 모드로 플레이</button><button id="copy-link">친구 초대 링크 복사</button><button id="pause-score" class="quiet" hidden>성적표 보기</button><button id="leave" class="quiet">로비로 나가기</button><p class="pause-hint">왼쪽 조이스틱 이동 · 오른쪽 드래그 조준<br/>PC: WASD 이동 · G 수류탄 · F 섬광탄<br/>투척물은 내게도 영향을 줍니다. 엄폐물을 활용하세요.</p></section></div>
 <script type="module" src="/src/main.js"></script>
 </body></html>

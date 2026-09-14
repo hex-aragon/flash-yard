@@ -1,5 +1,6 @@
 import './style.css';
 import {World} from './world.js';
+import {TouchControls} from './touch-controls.js';
 import {Match, move, clamp} from './simulation.js';
 import {Room, randomCode} from './network.js';
 import {BLOCKS, HALF} from './map.js';
@@ -11,6 +12,35 @@ let accumulator=0,networkClock=0,hudClock=0,last=performance.now(),elapsed=0,fla
 const keys=new Set();let firing=false,yaw=0,pitch=0,mouseScale=1;
 const blank=()=>({forward:0,side:0,sprint:false,jump:false,fire:false,yaw,pitch});let input=blank();
 let audio=null,master=null,dragMode=false;const feed=[];
+let screenMode = navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches;
+$('touch-mode').checked = screenMode;
+const touch = new TouchControls({
+ stick: $('joystick'), thumb: $('joystick-thumb'), look: $('look-zone'),
+ buttons: {fire: $('touch-fire'), jump: $('touch-jump'), reload: $('touch-reload'), frag: $('touch-frag'), flash: $('touch-flash')},
+ enabled: () => screenMode && active && locked && !ended && $('scoreboard').hidden,
+ onLook: (dx,dy) => {yaw -= dx * .004 * mouseScale;pitch = clamp(pitch - dy * .004 * mouseScale,-1.45,1.45);},
+ onAction: kind => act(kind),
+});
+function syncControls() {
+ document.body.classList.toggle('screen-mode', screenMode);
+ document.body.classList.toggle('playing', active);
+ $('screen-controls').hidden = !screenMode || !active || !locked || ended;
+}
+function pauseGame() {
+ if(!active) return;
+ locked = false;resetInput();
+ if(document.pointerLockElement) document.exitPointerLock();
+ $('pause').hidden = false;$('scoreboard').hidden = true;
+ $('pause-title').textContent = ended ? '오늘 훈련, 끝!' : '잠깐 작전 회의';
+ $('pause-copy').textContent = practice ? '준비되면 다시 뛰어보세요.' : '친구들의 전투는 계속됩니다.';
+ $('resume').textContent = '전장으로 돌아가기';syncControls();
+}
+function toggleScore() {
+ resetInput();$('scoreboard').hidden = !$('scoreboard').hidden;scoreboard();
+ $('touch-score').textContent = $('scoreboard').hidden ? '순위' : '닫기';
+ if(ended) {$('pause').hidden = !$('scoreboard').hidden;$('screen-controls').hidden = $('scoreboard').hidden;}
+}
+syncControls();
 function sound(kind,volume=1){
  if(!audio)return;
  const now=audio.currentTime,gain=audio.createGain();gain.connect(master);gain.gain.setValueAtTime(volume*.13,now);
@@ -23,12 +53,12 @@ function enableAudio(){if(!audio){audio=new AudioContext();master=audio.createGa
 function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error);}
 function busy(value){for(const id of ['host','join','practice'])$(id).disabled=value||!ready;}
 function toast(message){$('toast').textContent=message;toastUntil=elapsed+2.6;}
-function resetInput(){keys.clear();firing=false;input=blank();if(match&&myId)match.inputs[myId]=input;room?.send({type:'input',input});}
+function resetInput(){touch.reset();keys.clear();firing=false;input=blank();if(match&&myId)match.inputs[myId]=input;room?.send({type:'input',input});}
 function enter(id,isPractice){
  myId=id;practice=isPractice;active=true;ended=false;dragMode=false;locked=false;$('drag-mode').hidden=true;accumulator=0;networkClock=0;predicted=null;feed.length=0;flashTime=0;flashPower=0;hurtTime=0;hitTime=0;toastUntil=0;
  $('lobby').hidden=true;$('hud').hidden=false;$('pause').hidden=false;$('pause-title').textContent='준비됐으면, 뛰어!';$('pause-copy').textContent='아래 버튼을 누르면 게임을 시작합니다.';$('resume').textContent='전장으로 들어가기';$('resume').hidden=false;
  $('copy-link').hidden=isPractice;$('room-badge').textContent=isPractice?'연습 모드':`방 ${code} · 초대 링크 복사`;$('mode-label').textContent=isPractice?'봇 3명과 몸풀기':'자유 전투 / 최대 8명';
- $('scoreboard').hidden=true;busy(false);lastState=performance.now();
+ $('scoreboard').hidden=true;$('pause-score').hidden=true;resetInput();syncControls();busy(false);lastState=performance.now();
 }
 function setAngles(p){if(!p)return;yaw=p.yaw;pitch=p.pitch;input.yaw=yaw;input.pitch=pitch;}
 function practiceStart(){if(!ready)return;enableAudio();room?.close();room=null;code='';match=new Match();const p=match.add('local',$('nickname').value);for(let i=1;i<=3;i++)match.add('bot-'+i,['','말년병장 봇','택배왔어요 봇','눈감고돌격 봇'][i],true);enter('local',true);state=match.snapshot();setAngles(p);}
@@ -50,15 +80,15 @@ function connect(host){
  });room=newRoom;room.open(host,roomCode,$('nickname').value);
 }
 function leave(){
- room?.close();room=null;match=null;active=false;dragMode=false;locked=false;state=null;predicted=null;myId='';resetInput();if(document.pointerLockElement)document.exitPointerLock();$('lobby').hidden=false;$('hud').hidden=true;$('pause').hidden=true;$('death').hidden=true;busy(false);
+ room?.close();room=null;match=null;active=false;dragMode=false;locked=false;state=null;predicted=null;myId='';resetInput();if(document.pointerLockElement)document.exitPointerLock();$('lobby').hidden=false;$('hud').hidden=true;$('pause').hidden=true;$('death').hidden=true;syncControls();busy(false);
  for(const g of world.players.values())world.scene.remove(g);world.players.clear();for(const g of world.nades.values())world.disposeObject(g);world.nades.clear();for(const g of world.items)g.visible=true;
  status('방을 만들고 초대 링크를 친구에게 보내세요.');
 }
 async function lock(){
- if(!active||ended)return;enableAudio();if(dragMode){locked=true;$('pause').hidden=true;return;}
+ if(!active||ended)return;enableAudio();if(screenMode||dragMode){locked=true;$('pause').hidden=true;syncControls();if(screenMode)toast('왼쪽 조이스틱 이동 · 오른쪽 드래그 조준');return;}
  try{await $('game').requestPointerLock();}catch{$('pause-copy').textContent='마우스 고정을 허용하거나 아래 드래그 모드를 선택해 주세요.';$('drag-mode').hidden=false;}
 }
-function act(kind){if(!active||!locked||ended)return;if(match){match.inputs[myId]=input;const p=match.players[myId];if(p){p.yaw=yaw;p.pitch=pitch;}match.act(myId,kind);}else{room?.send({type:'input',input});room?.send({type:'action',kind});}}
+function act(kind){if(!active||!locked||ended)return;input.yaw=yaw;input.pitch=pitch;if(match){match.inputs[myId]=input;const p=match.players[myId];if(p){p.yaw=yaw;p.pitch=pitch;}match.act(myId,kind);}else{room?.send({type:'input',input});room?.send({type:'action',kind});}}
 async function copyLink(){
  if(practice){toast('친구와 하려면 로비에서 방을 만들어 주세요.');return;}
  const url=new URL(location.href);url.search='';url.hash='';url.searchParams.set('room',code);
@@ -81,8 +111,8 @@ function scoreboard(){
 }
 function updateHud(){
  if(!state)return;const p=state.players[myId];if(!p)return;
- $('mode-label').textContent=practice?'봇 3명과 몸풀기':`자유 전투 / ${Object.keys(state.players).length}명 접속`;$('hp').textContent=p.hp;$('health-bar').style.width=p.hp+'%';$('ammo').textContent=p.ammo;$('frag-count').textContent=p.frag;$('flash-count').textContent=p.flash;
- $('weapon-label').textContent=p.reload?'재장전 중…':p.ammo===0?'R 키로 재장전':'FY-30 / 자동소총';
+ $('mode-label').textContent=practice?'봇 3명과 몸풀기':`자유 전투 / ${Object.keys(state.players).length}명 접속`;$('hp').textContent=p.hp;$('health-bar').style.width=p.hp+'%';$('ammo').textContent=p.ammo;$('frag-count').textContent=p.frag;$('flash-count').textContent=p.flash;$('touch-frag-count').textContent=p.frag;$('touch-flash-count').textContent=p.flash;
+ $('weapon-label').textContent=p.reload?'재장전 중…':p.ammo===0?(screenMode?'재장전 버튼을 누르세요':'R 키로 재장전'):'FY-30 / 자동소총';
  const sec=Math.max(0,Math.ceil(300-state.time));$('timer').textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
  $('death').hidden=p.hp>0||ended;$('respawn').textContent=Math.max(0,Math.ceil(p.respawn-state.time));
  $('feed').replaceChildren(...feed.filter(f=>f.until>elapsed).map(f=>{const d=document.createElement('div');d.textContent=f.text;return d;}));
@@ -91,29 +121,35 @@ function updateHud(){
  c.fillStyle='#315061';for(const [x,z,w,d] of BLOCKS)c.fillRect(90+(x-w/2)*scale,90+(z-d/2)*scale,w*scale,d*scale);
  for(const item of state.items)if(item.ready<=state.time){c.fillStyle=item.type==='frag'?'#ffc18b':item.type==='flash'?'#a9e8f4':'#a6e8c6';c.fillRect(88+item.x*scale,88+item.z*scale,4,4);}
  c.translate(90+p.x*scale,90+p.z*scale);c.rotate(-yaw);c.fillStyle='#fff';c.beginPath();c.moveTo(0,-6);c.lineTo(-4,4);c.lineTo(4,4);c.closePath();c.fill();c.restore();
- if(state.time>=300&&!ended){ended=true;resetInput();document.exitPointerLock();$('pause').hidden=false;$('pause-title').textContent='오늘 훈련, 끝!';$('pause-copy').textContent='Tab 키로 성적표를 볼 수 있어요. 로비에서 새 방을 만들어 다시 만나요.';$('resume').hidden=true;}
+ if(state.time>=300&&!ended){ended=true;pauseGame();if(document.pointerLockElement)document.exitPointerLock();$('pause').hidden=false;$('pause-title').textContent='오늘 훈련, 끝!';$('pause-copy').textContent='Tab 키로 성적표를 볼 수 있어요. 로비에서 새 방을 만들어 다시 만나요.';$('resume').hidden=true;$('pause-score').hidden=false;}
 }
 $('host').addEventListener('click',()=>connect(true));$('join').addEventListener('click',()=>connect(false));$('practice').addEventListener('click',practiceStart);$('resume').addEventListener('click',lock);$('leave').addEventListener('click',leave);$('copy-link').addEventListener('click',copyLink);$('room-badge').addEventListener('click',copyLink);$('drag-mode').addEventListener('click',()=>{dragMode=true;locked=true;$('pause').hidden=true;toast('우클릭 드래그로 조준 · 좌클릭 발사 · Esc 메뉴');});
 $('room-code').addEventListener('keydown',e=>{if(e.key==='Enter'&&!$('join').disabled)connect(false);});$('sensitivity').addEventListener('input',e=>mouseScale=Number(e.target.value));
-document.addEventListener('pointerlockchange',()=>{if(dragMode)return;locked=document.pointerLockElement===$('game');if(active){$('pause').hidden=locked;if(!locked){resetInput();$('pause-title').textContent=ended?'오늘 훈련, 끝!':'잠깐 작전 회의';$('pause-copy').textContent=ended?'Tab 키로 성적표를 보거나 로비에서 새 판을 시작하세요.':'친구들의 전투는 계속됩니다. 준비되면 돌아오세요.';$('resume').textContent='전장으로 돌아가기';}}});
+document.addEventListener('pointerlockchange',()=>{if(dragMode||screenMode)return;locked=document.pointerLockElement===$('game');if(active){$('pause').hidden=locked;if(!locked){resetInput();$('pause-title').textContent=ended?'오늘 훈련, 끝!':'잠깐 작전 회의';$('pause-copy').textContent=ended?'Tab 키로 성적표를 보거나 로비에서 새 판을 시작하세요.':'친구들의 전투는 계속됩니다. 준비되면 돌아오세요.';$('resume').textContent='전장으로 돌아가기';}}});
 document.addEventListener('pointerlockerror',()=>{if(active){$('pause-copy').textContent='이 창에서는 마우스 고정이 지원되지 않아요. 드래그 모드나 일반 Chrome 창에서 플레이하세요.';$('drag-mode').hidden=false;}});
-document.addEventListener('mousemove',e=>{if(locked&&!ended&&(!dragMode||(e.buttons&2))){yaw-=e.movementX*.002*mouseScale;pitch=clamp(pitch-e.movementY*.002*mouseScale,-1.45,1.45);}});
+document.addEventListener('mousemove',e=>{if(!screenMode&&locked&&!ended&&(!dragMode||(e.buttons&2))){yaw-=e.movementX*.002*mouseScale;pitch=clamp(pitch-e.movementY*.002*mouseScale,-1.45,1.45);}});
 document.addEventListener('keydown',e=>{
  if(!active)return;
- if(e.code==='Escape'&&dragMode){locked=false;resetInput();$('pause').hidden=false;return;}
+ if(e.code==='Escape'&&(dragMode||screenMode)){pauseGame();return;}
  if(['Tab','Space','KeyW','KeyA','KeyS','KeyD','KeyG','KeyF','KeyR'].includes(e.code))e.preventDefault();
  if(e.code==='Tab'){$('scoreboard').hidden=false;scoreboard();if(ended)$('pause').hidden=true;return;}
  if(!locked||ended)return;keys.add(e.code);if(e.repeat)return;
  if(e.code==='KeyG')act('frag');if(e.code==='KeyF')act('flash');if(e.code==='KeyR')act('reload');
 });
 document.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code==='Tab'){$('scoreboard').hidden=true;if(ended)$('pause').hidden=false;}});
-document.addEventListener('mousedown',e=>{if(locked&&e.button===0){firing=true;act('fire');}});document.addEventListener('mouseup',e=>{if(e.button===0)firing=false;});
-$('game').addEventListener('contextmenu',e=>e.preventDefault());window.addEventListener('blur',resetInput);document.addEventListener('visibilitychange',()=>{if(document.hidden)resetInput();});window.addEventListener('pagehide',()=>room?.close());
+document.addEventListener('mousedown',e=>{if(!screenMode&&locked&&e.button===0){firing=true;act('fire');}});document.addEventListener('mouseup',e=>{if(e.button===0)firing=false;});
+$('game').addEventListener('contextmenu',e=>e.preventDefault());window.addEventListener('blur',()=>screenMode?pauseGame():resetInput());document.addEventListener('visibilitychange',()=>{if(document.hidden){if(screenMode)pauseGame();else resetInput();}});window.addEventListener('resize',resetInput);window.addEventListener('pagehide',()=>room?.close());
+$('touch-mode').addEventListener('change', e => {screenMode=e.target.checked;resetInput();syncControls();});
+$('touch-menu').addEventListener('click',pauseGame);
+$('touch-score').addEventListener('click',toggleScore);
+$('pause-score').addEventListener('click',toggleScore);
 const invited=new URLSearchParams(location.search).get('room');if(invited){$('room-code').value=invited.slice(0,6).toUpperCase();status('초대받은 훈련장이에요. 호출명을 정하고 입장하세요.');}
 busy(true);world.ready.then(()=>{ready=true;busy(false);}).catch(error=>{console.error(error);status('맵 파일을 불러오지 못했어요. 새로고침해 주세요.',true);});
 function frame(now){
  const dt=Math.min((now-last)/1000,.06);last=now;elapsed+=dt;
- input={forward:locked?(Number(keys.has('KeyW'))-Number(keys.has('KeyS'))):0,side:locked?(Number(keys.has('KeyD'))-Number(keys.has('KeyA'))):0,sprint:keys.has('ShiftLeft')||keys.has('ShiftRight'),jump:keys.has('Space'),fire:locked&&firing,yaw,pitch};
+ const stick = touch.read();
+ const controlling = locked && !ended && $('scoreboard').hidden;
+ input={forward:controlling?clamp(Number(keys.has('KeyW'))-Number(keys.has('KeyS'))+stick.forward,-1,1):0,side:controlling?clamp(Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+stick.side,-1,1):0,sprint:controlling&&(keys.has('ShiftLeft')||keys.has('ShiftRight')||stick.sprint),jump:controlling&&(keys.has('Space')||stick.jump),fire:controlling&&(firing||stick.fire),yaw,pitch};
  if(active&&state){
   if(match){
    const wasDead=match.players[myId]?.hp<=0;match.inputs[myId]=input;accumulator+=practice&&!locked?0:dt;while(accumulator>=1/60){match.step(1/60);accumulator-=1/60;}
